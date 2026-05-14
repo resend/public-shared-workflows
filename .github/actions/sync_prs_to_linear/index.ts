@@ -69,8 +69,13 @@ const run = async () => {
     per_page: 100,
   });
 
+  const INTERNAL_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+
   const untracked = allPrs.filter(
-    pr => !pr.draft && !pr.labels.some(l => l.name === LABEL),
+    pr =>
+      !pr.draft &&
+      !pr.labels.some(l => l.name === LABEL) &&
+      !INTERNAL_ASSOCIATIONS.has(pr.author_association),
   );
 
   core.info(`${untracked.length} PR(s) without the label — checking Linear for existing tickets`);
