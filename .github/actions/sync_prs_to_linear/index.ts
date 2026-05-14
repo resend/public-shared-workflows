@@ -84,17 +84,10 @@ const run = async () => {
       isExternalContributor(pr),
   );
 
-  const skipped = allPrs.filter(pr => !untracked.includes(pr));
-  for (const pr of skipped) {
-    core.info(`Skipping PR #${pr.number} (@${pr.user?.login}, association: ${pr.author_association}, type: ${pr.user?.type})`);
-  }
-
   core.info(`${untracked.length} PR(s) without the label — checking Linear for existing tickets`);
+
   for (const pr of untracked) {
     core.info(`Processing PR #${pr.number} (@${pr.user?.login}, association: ${pr.author_association}, type: ${pr.user?.type})`);
-  }
-
-  for (const pr of untracked) {
     const attachmentData = await linearFetch<FindAttachmentData>(
       `query FindAttachment($url: String!) {
         attachments(filter: { url: { eq: $url } }) {
