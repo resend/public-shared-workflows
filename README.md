@@ -11,7 +11,7 @@ Syncs open, non-draft PRs to Linear issues. Idempotent — uses a `linear-synced
 **Required permissions:**
 ```yaml
 permissions:
-  pull-requests: read
+  pull-requests: write
   issues: write
 ```
 
