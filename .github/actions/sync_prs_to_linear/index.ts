@@ -69,7 +69,7 @@ const run = async () => {
     per_page: 100,
   });
 
-  const INTERNAL_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'MANNEQUIN']);
+  const INTERNAL_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR', 'MANNEQUIN']);
 
   const isExternalContributor = (pr: (typeof allPrs)[number]) =>
     !INTERNAL_ASSOCIATIONS.has(pr.author_association) &&
