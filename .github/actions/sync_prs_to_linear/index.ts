@@ -90,6 +90,9 @@ const run = async () => {
   }
 
   core.info(`${untracked.length} PR(s) without the label — checking Linear for existing tickets`);
+  for (const pr of untracked) {
+    core.info(`Processing PR #${pr.number} (@${pr.user?.login}, association: ${pr.author_association}, type: ${pr.user?.type})`);
+  }
 
   for (const pr of untracked) {
     const attachmentData = await linearFetch<FindAttachmentData>(
