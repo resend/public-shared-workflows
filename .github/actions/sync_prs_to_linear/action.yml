@@ -1,0 +1,32 @@
+name: Sync PRs to Linear
+description: 'Syncs open, non-draft GitHub PRs to Linear as issues, idempotent via label + attachment deduplication'
+inputs:
+  linear-api-key:
+    description: 'Linear API key (pass secrets.LINEAR_API_KEY)'
+    required: true
+  linear-team-id:
+    description: 'Linear team ID to create issues in (pass secrets.LINEAR_TEAM_ID)'
+    required: true
+  github-token:
+    description: 'GitHub token with pull-requests:read and issues:write (pass github.token)'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: "22"
+
+    - name: Install dependencies for action scripts
+      shell: bash
+      working-directory: "${{ github.action_path }}"
+      run: npm ci
+
+    - name: Sync PRs to Linear
+      shell: bash
+      env:
+        LINEAR_API_KEY: ${{ inputs.linear-api-key }}
+        LINEAR_TEAM_ID: ${{ inputs.linear-team-id }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: ${{ github.action_path }}/node_modules/.bin/tsx --unhandled-rejections=strict ${{ github.action_path }}/index.ts
