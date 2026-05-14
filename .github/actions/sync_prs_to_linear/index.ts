@@ -69,13 +69,19 @@ const run = async () => {
     per_page: 100,
   });
 
-  const INTERNAL_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+  const INTERNAL_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR', 'MANNEQUIN']);
+
+  const isExternalContributor = (pr: (typeof allPrs)[number]) =>
+    !INTERNAL_ASSOCIATIONS.has(pr.author_association) &&
+    pr.user?.type !== 'Bot' &&
+    !pr.user?.login.endsWith('[bot]') &&
+    !pr.user?.login.endsWith('-bot');
 
   const untracked = allPrs.filter(
     pr =>
       !pr.draft &&
       !pr.labels.some(l => l.name === LABEL) &&
-      !INTERNAL_ASSOCIATIONS.has(pr.author_association),
+      isExternalContributor(pr),
   );
 
   core.info(`${untracked.length} PR(s) without the label — checking Linear for existing tickets`);
