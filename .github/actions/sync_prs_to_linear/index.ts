@@ -72,23 +72,42 @@ const run = async () => {
 
   const INTERNAL_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR', 'MANNEQUIN']);
 
-  const isExternalContributor = (pr: (typeof allPrs)[number]) =>
-    !INTERNAL_ASSOCIATIONS.has(pr.author_association) &&
-    pr.user?.type !== 'Bot' &&
-    !pr.user?.login.endsWith('[bot]') &&
-    !pr.user?.login.endsWith('-bot');
+  const isBot = (pr: (typeof allPrs)[number]) =>
+    pr.user?.type === 'Bot' ||
+    pr.user?.login.endsWith('[bot]') ||
+    pr.user?.login.endsWith('-bot');
 
-  const untracked = allPrs.filter(
+  const isOrgMember = async (username: string): Promise<boolean> => {
+    try {
+      await octokit.rest.orgs.checkMembershipForUser({ org: owner, username });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const candidates = allPrs.filter(
     pr =>
       !pr.draft &&
       !pr.labels.some(l => l.name === LABEL) &&
-      isExternalContributor(pr),
+      !INTERNAL_ASSOCIATIONS.has(pr.author_association) &&
+      !isBot(pr),
   );
+
+  const untracked = (
+    await Promise.all(
+      candidates.map(async pr => {
+        if (pr.author_association !== 'CONTRIBUTOR') return pr;
+        const member = await isOrgMember(pr.user!.login);
+        return member ? null : pr;
+      }),
+    )
+  ).filter(pr => pr !== null);
 
   core.info(`${untracked.length} PR(s) without the label — checking Linear for existing tickets`);
 
   for (const pr of untracked) {
-    core.info(`Processing PR #${pr.number} (@${pr.user?.login}, association: ${pr.author_association}, type: ${pr.user?.type})`);
+    core.info(`Processing PR #${pr.number}`);
     const attachmentData = await linearFetch<FindAttachmentData>(
       `query FindAttachment($url: String!) {
         attachments(filter: { url: { eq: $url } }) {
