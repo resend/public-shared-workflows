@@ -3,6 +3,7 @@ import * as github from '@actions/github';
 
 const LINEAR_API_URL = 'https://api.linear.app/graphql';
 const LABEL = 'linear-synced';
+const LINEAR_PRIORITY_LOW = 4;
 
 const linearApiKey = process.env.LINEAR_API_KEY!;
 const linearTeamId = process.env.LINEAR_TEAM_ID!;
@@ -122,6 +123,7 @@ const run = async () => {
           teamId: linearTeamId,
           title: `#${pr.number} ${pr.title}`,
           description: `GitHub PR by @${pr.user?.login}: ${pr.html_url}\n\n${pr.body ?? ''}`,
+          priority: LINEAR_PRIORITY_LOW,
         },
       },
     );
