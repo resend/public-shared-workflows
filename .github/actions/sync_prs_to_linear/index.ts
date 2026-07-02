@@ -15,7 +15,7 @@ interface LinearResponse<T> {
 
 interface FindAttachmentData {
   attachments: {
-    nodes: Array<{ id: string; issue: { identifier: string } }>;
+    nodes: Array<{ id: string; issue: { id: string; identifier: string } }>;
   };
 }
 
@@ -31,6 +31,24 @@ interface CreateAttachmentData {
     success: boolean;
   };
 }
+
+interface CreateRelationData {
+  issueRelationCreate: {
+    success: boolean;
+  };
+}
+
+const FIND_ATTACHMENT_QUERY = `query FindAttachment($url: String!) {
+  attachments(filter: { url: { eq: $url } }) {
+    nodes { id issue { id identifier } }
+  }
+}`;
+
+const CREATE_RELATION_MUTATION = `mutation CreateRelation($input: IssueRelationCreateInput!) {
+  issueRelationCreate(input: $input) {
+    success
+  }
+}`;
 
 const linearFetch = async <T>(
   query: string,
@@ -86,6 +104,31 @@ const run = async () => {
     }
   };
 
+  const getClosingIssueUrls = async (prNumber: number): Promise<string[]> => {
+    try {
+      const data = await octokit.graphql<{
+        repository: {
+          pullRequest: { closingIssuesReferences: { nodes: Array<{ url: string }> } };
+        };
+      }>(
+        `query($owner: String!, $repo: String!, $number: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $number) {
+              closingIssuesReferences(first: 20) { nodes { url } }
+            }
+          }
+        }`,
+        { owner, repo, number: prNumber },
+      );
+      return data.repository.pullRequest.closingIssuesReferences.nodes.map(n => n.url);
+    } catch (e: unknown) {
+      core.warning(
+        `Failed to fetch closing issues for PR #${prNumber}: ${(e as Error).message}`,
+      );
+      return [];
+    }
+  };
+
   const candidates = allPrs.filter(
     pr =>
       !pr.draft &&
@@ -108,14 +151,9 @@ const run = async () => {
 
   for (const pr of untracked) {
     core.info(`Processing PR #${pr.number}`);
-    const attachmentData = await linearFetch<FindAttachmentData>(
-      `query FindAttachment($url: String!) {
-        attachments(filter: { url: { eq: $url } }) {
-          nodes { id issue { identifier } }
-        }
-      }`,
-      { url: pr.html_url },
-    );
+    const attachmentData = await linearFetch<FindAttachmentData>(FIND_ATTACHMENT_QUERY, {
+      url: pr.html_url,
+    });
 
     const existing = attachmentData.data?.attachments?.nodes?.[0];
 
@@ -171,6 +209,27 @@ const run = async () => {
 
     if (!attachData.data?.attachmentCreate?.success) {
       core.warning(`Failed to attach PR #${pr.number} to Linear ticket`);
+    }
+
+    const closingUrls = await getClosingIssueUrls(pr.number);
+    for (const url of closingUrls) {
+      const found = await linearFetch<FindAttachmentData>(FIND_ATTACHMENT_QUERY, { url });
+      const related = found.data?.attachments?.nodes?.[0]?.issue;
+
+      if (!related) {
+        core.info(`No Linear ticket found for linked issue ${url} — skipping relation`);
+        continue;
+      }
+
+      const rel = await linearFetch<CreateRelationData>(CREATE_RELATION_MUTATION, {
+        input: { issueId: issue.id, relatedIssueId: related.id, type: 'related' },
+      });
+
+      if (rel.data?.issueRelationCreate?.success) {
+        core.info(`Linked ${issue.identifier} <-> ${related.identifier} (related)`);
+      } else {
+        core.warning(`Failed to link ${issue.identifier} to ${related.identifier}`);
+      }
     }
 
     await octokit.rest.issues.addLabels({
