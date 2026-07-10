@@ -3,6 +3,7 @@ import * as github from '@actions/github';
 
 const LINEAR_API_URL = 'https://api.linear.app/graphql';
 const LABEL = 'linear-synced';
+const LINEAR_GITHUB_PR_LABEL = 'GitHub PR';
 const LINEAR_PRIORITY_LOW = 4;
 
 const linearApiKey = process.env.LINEAR_API_KEY!;
@@ -16,6 +17,15 @@ interface LinearResponse<T> {
 interface FindAttachmentData {
   attachments: {
     nodes: Array<{ id: string; issue: { id: string; identifier: string } }>;
+  };
+}
+
+interface FindIssueLabelData {
+  teamLabels: {
+    nodes: Array<{ id: string; isGroup: boolean }>;
+  };
+  workspaceLabels: {
+    nodes: Array<{ id: string; isGroup: boolean }>;
   };
 }
 
@@ -44,6 +54,21 @@ const FIND_ATTACHMENT_QUERY = `query FindAttachment($url: String!) {
   }
 }`;
 
+const FIND_ISSUE_LABEL_QUERY = `query FindIssueLabel($teamId: String!, $labelName: String!) {
+  teamLabels: issueLabels(
+    first: 10
+    filter: { name: { eq: $labelName }, team: { id: { eq: $teamId } } }
+  ) {
+    nodes { id isGroup }
+  }
+  workspaceLabels: issueLabels(
+    first: 10
+    filter: { name: { eq: $labelName }, team: { null: true } }
+  ) {
+    nodes { id isGroup }
+  }
+}`;
+
 const CREATE_RELATION_MUTATION = `mutation CreateRelation($input: IssueRelationCreateInput!) {
   issueRelationCreate(input: $input) {
     success
@@ -68,6 +93,29 @@ const linearFetch = async <T>(
 const run = async () => {
   const octokit = github.getOctokit(token);
   const { owner, repo } = github.context.repo;
+  let githubPrLabelId: string | undefined;
+
+  const getGitHubPrLabelId = async (): Promise<string> => {
+    if (githubPrLabelId) return githubPrLabelId;
+
+    const labelData = await linearFetch<FindIssueLabelData>(FIND_ISSUE_LABEL_QUERY, {
+      teamId: linearTeamId,
+      labelName: LINEAR_GITHUB_PR_LABEL,
+    });
+    const label = [
+      ...(labelData.data?.teamLabels?.nodes ?? []),
+      ...(labelData.data?.workspaceLabels?.nodes ?? []),
+    ].find(node => !node.isGroup);
+
+    if (!label) {
+      throw new Error(
+        `Linear label "${LINEAR_GITHUB_PR_LABEL}" was not found for team ${linearTeamId}`,
+      );
+    }
+
+    githubPrLabelId = label.id;
+    return githubPrLabelId;
+  };
 
   try {
     await octokit.rest.issues.createLabel({
@@ -168,6 +216,7 @@ const run = async () => {
       continue;
     }
 
+    const linearLabelId = await getGitHubPrLabelId();
     const createData = await linearFetch<CreateIssueData>(
       `mutation CreateIssue($input: IssueCreateInput!) {
         issueCreate(input: $input) {
@@ -181,6 +230,7 @@ const run = async () => {
           title: `#${pr.number} ${pr.title}`,
           description: `GitHub PR by @${pr.user?.login}: ${pr.html_url}\n\n${pr.body ?? ''}`,
           priority: LINEAR_PRIORITY_LOW,
+          labelIds: [linearLabelId],
         },
       },
     );
