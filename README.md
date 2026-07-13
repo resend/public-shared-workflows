@@ -6,7 +6,7 @@ Reusable GitHub Actions for Resend repos.
 
 ### `sync_prs_to_linear`
 
-Syncs open, non-draft PRs to Linear issues. Idempotent — uses a `linear-synced` label and Linear attachments to avoid duplicates across runs.
+Syncs open, non-draft PRs to Linear issues with a 20-calendar-day SLA. PRs are linked through Linear's native GitHub integration so their attachment source is `github`. Idempotent — uses a `linear-synced` label and Linear attachments to avoid duplicates across runs.
 
 **Required permissions:**
 ```yaml
