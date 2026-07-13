@@ -54,7 +54,7 @@ const FIND_ATTACHMENT_QUERY = `query FindAttachment($url: String!) {
   }
 }`;
 
-const FIND_ISSUE_LABEL_QUERY = `query FindIssueLabel($teamId: String!, $labelName: String!) {
+const FIND_ISSUE_LABEL_QUERY = `query FindIssueLabel($teamId: ID!, $labelName: String!) {
   teamLabels: issueLabels(
     first: 10
     filter: { name: { eq: $labelName }, team: { id: { eq: $teamId } } }
