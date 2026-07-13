@@ -28,9 +28,10 @@ interface CreateIssueData {
   };
 }
 
-interface CreateAttachmentData {
-  attachmentCreate: {
+interface LinkGitHubPrData {
+  attachmentLinkGitHubPR: {
     success: boolean;
+    attachment: { sourceType: string | null };
   };
 }
 
@@ -201,23 +202,25 @@ const run = async () => {
 
     const issue = createData.data.issueCreate.issue;
 
-    const attachData = await linearFetch<CreateAttachmentData>(
-      `mutation CreateAttachment($input: AttachmentCreateInput!) {
-        attachmentCreate(input: $input) {
+    const attachData = await linearFetch<LinkGitHubPrData>(
+      `mutation LinkGitHubPr($issueId: String!, $url: String!, $title: String) {
+        attachmentLinkGitHubPR(issueId: $issueId, url: $url, title: $title) {
           success
+          attachment { sourceType }
         }
       }`,
       {
-        input: {
-          issueId: issue.id,
-          url: pr.html_url,
-          title: `GitHub PR #${pr.number}`,
-        },
+        issueId: issue.id,
+        url: pr.html_url,
+        title: `GitHub PR #${pr.number}`,
       },
     );
 
-    if (!attachData.data?.attachmentCreate?.success) {
-      core.warning(`Failed to attach PR #${pr.number} to Linear ticket`);
+    const linkedPr = attachData.data?.attachmentLinkGitHubPR;
+    if (!linkedPr?.success) {
+      core.warning(`Failed to link PR #${pr.number} to Linear ticket`);
+    } else if (linkedPr.attachment.sourceType !== 'github') {
+      core.warning(`PR #${pr.number} was linked without the expected GitHub source`);
     }
 
     const closingUrls = await getClosingIssueUrls(pr.number);
