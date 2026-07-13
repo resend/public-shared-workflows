@@ -1,5 +1,5 @@
 name: Sync PRs to Linear
-description: 'Syncs open, non-draft GitHub PRs to Linear as issues, idempotent via label + attachment deduplication'
+description: 'Syncs open, non-draft GitHub PRs to Linear as issues with a 20-day SLA'
 inputs:
   linear-api-key:
     description: 'Linear API key (pass secrets.LINEAR_API_KEY)'
